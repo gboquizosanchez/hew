@@ -122,16 +122,6 @@ class MigrationParser
         // Resolve external class constants (e.g., Login::TYPE_LOGIN)
         $content = $this->resolveExternalClassConstants($content);
 
-        // Fallback: infer table name from filename for any still-unresolved Schema calls
-        $tableName = $this->tableNameFromFilename($filename);
-        if ($tableName !== null) {
-            $content = preg_replace(
-                '/Schema\s*::\s*(create|table)\s*\(\s*(?:\$[a-zA-Z_][a-zA-Z0-9_]*|(?:self|static)::[A-Z_]+)/',
-                "Schema::$1('{$tableName}'",
-                $content,
-            ) ?? $content;
-        }
-
         return $content;
     }
 
@@ -221,8 +211,9 @@ class MigrationParser
             }
             $this->processUpBody($upBody, basename($file));
 
-            // Parse ALTER TABLE ... MODIFY from DB::statement calls
-            $this->parseDbStatements($upBody, basename($file));
+        // Parse ALTER TABLE ... MODIFY from DB::statement calls
+        // Only modify existing tables — don't create new ones from SQL statements
+        $this->parseDbStatements($upBody, basename($file));
         } catch (\Throwable) {
             $this->unparseable[] = basename($file);
         }
@@ -507,7 +498,7 @@ class MigrationParser
             $nullable = strtoupper($m[4]) === 'NULL';
 
             if (! isset($this->tables[$tableName])) {
-                $this->tables[$tableName] = new ParsedTable($tableName);
+                continue;
             }
 
             $type = $this->sqlTypeToBlueprintType($sqlType);

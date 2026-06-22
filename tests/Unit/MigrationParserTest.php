@@ -259,6 +259,14 @@ return new class extends Migration {
 
 it('parses ALTER TABLE MODIFY from DB::statement', function (): void {
     $dir = tmpMigrationDir();
+    file_put_contents($dir.'/2024_01_01_000000_create.php', '<?php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+return new class extends Migration {
+    public function up(): void { Schema::create("users", function (Blueprint $t) { $t->id(); $t->string("name"); }); }
+    public function down(): void {}
+};');
     file_put_contents($dir.'/2024_01_01_000001_raw.php', '<?php
 use Illuminate\Database\Migrations\Migration;
 return new class extends Migration {
