@@ -28,6 +28,12 @@ class SchemaDiff
     /** @var array<string, ColumnDef[]> Columns whose type changed — desired state, rendered with ->change() */
     public readonly array $modifiedColumns;
 
+    /** @var array<string, ParsedTable> Dropped tables with full definition for rollback */
+    public readonly array $droppedTablesParsed;
+
+    /** @var array<string, ParsedColumn[]> Original columns before modification for rollback */
+    public readonly array $originalModifiedColumns;
+
     /** @var string[] */
     public readonly array $warnings;
 
@@ -40,6 +46,7 @@ class SchemaDiff
         $newColumns = [];
         $droppedColumns = [];
         $modifiedColumns = [];
+        $originalModifiedColumns = [];
         $warnings = [];
 
         $desiredTableNames = array_keys($desired->getTables());
@@ -61,6 +68,7 @@ class SchemaDiff
                     $currentType = $currentTable->columns[$column->name]->type;
                     if (! $this->typesCompatible($column->type, $currentType)) {
                         $modifiedColumns[$tableName][] = $column;
+                        $originalModifiedColumns[$tableName][] = $currentTable->columns[$column->name];
                     }
                 }
             }
@@ -86,9 +94,11 @@ class SchemaDiff
 
         // Tables present in migrations but absent in schema → drop migration
         $droppedTables = [];
+        $droppedTablesParsed = [];
         foreach (array_keys($current) as $tableName) {
             if (! in_array($tableName, $desiredTableNames, true)) {
                 $droppedTables[] = $tableName;
+                $droppedTablesParsed[$tableName] = $current[$tableName];
             }
         }
 
@@ -106,6 +116,8 @@ class SchemaDiff
         $this->droppedTables = $droppedTables;
         $this->droppedColumns = $droppedColumns;
         $this->modifiedColumns = $modifiedColumns;
+        $this->droppedTablesParsed = $droppedTablesParsed;
+        $this->originalModifiedColumns = $originalModifiedColumns;
         $this->warnings = $warnings;
     }
 

@@ -311,7 +311,7 @@ it('generates a drop_table migration for droppedTables', function () use (&$outp
 
     expect($dropFile)->not->toBeNull()
         ->and((string) file_get_contents($dropFile))->toContain("Schema::dropIfExists('old_table')")
-        ->toContain('RuntimeException');
+        ->toContain("Schema::create('old_table'");
 });
 
 it('generates a drop_columns migration for droppedColumns', function () use (&$outputDir, $stubsPath): void {
@@ -326,7 +326,7 @@ it('generates a drop_columns migration for droppedColumns', function () use (&$o
     expect($files)->toHaveCount(1)
         ->and($content)->toContain("Schema::table('users'")
         ->toContain("dropColumn(['old_col'])")
-        ->toContain('RuntimeException');
+        ->toContain("\$table->string('old_col')");
 });
 
 it('generates dropForeign before dropColumn for FK columns', function () use (&$outputDir, $stubsPath): void {
@@ -359,7 +359,7 @@ it('generates a modify_columns migration with ->change()', function () use (&$ou
     expect($files)->toHaveCount(1)
         ->and($content)->toContain("Schema::table('users'")
         ->toContain("\$table->text('name')->change()")
-        ->toContain('RuntimeException');
+        ->toContain("\$table->string('name')->change()");
 });
 
 it('emits destructive migrations before additive ones', function () use (&$outputDir, $stubsPath): void {

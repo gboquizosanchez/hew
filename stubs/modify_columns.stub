@@ -15,6 +15,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        throw new \RuntimeException("Column types in '{{ table }}' were changed — reverse manually.");
+        Schema::table('{{ table }}', function (Blueprint $table) {
+{{ reverse_columns }}
+        });
     }
 };

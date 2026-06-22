@@ -7,6 +7,7 @@ namespace Boquizo\Hew\Generator;
 use Boquizo\Hew\Diff\SchemaDiff;
 use Boquizo\Hew\Exceptions\MigrationAlreadyExistsException;
 use Boquizo\Hew\Parser\ParsedColumn;
+use Boquizo\Hew\Parser\ParsedTable;
 use Boquizo\Hew\Schema\ColumnDef;
 use Boquizo\Hew\Schema\Table;
 use Illuminate\Support\Str;
@@ -58,14 +59,14 @@ class MigrationGenerator
         foreach ($diff->droppedTables as $tableName) {
             $filename = $this->filename('drop', $tableName, $seq++);
             $path = $this->migrationsPath.'/'.$filename;
-            $this->writeAtomic($path, $this->renderDropTable($tableName));
+            $this->writeAtomic($path, $this->renderDropTable($tableName, $diff->droppedTablesParsed[$tableName]));
             $generated[] = $path;
         }
 
         foreach ($diff->modifiedColumns as $tableName => $columns) {
             $filename = $this->filename('modify', $tableName, $seq++);
             $path = $this->migrationsPath.'/'.$filename;
-            $this->writeAtomic($path, $this->renderModifyColumns($tableName, $columns));
+            $this->writeAtomic($path, $this->renderModifyColumns($tableName, $columns, $diff->originalModifiedColumns[$tableName] ?? []));
             $generated[] = $path;
         }
 
@@ -125,41 +126,66 @@ class MigrationGenerator
         );
     }
 
-    private function renderDropTable(string $tableName): string
+    private function renderDropTable(string $tableName, ParsedTable $parsedTable): string
     {
-        return str_replace('{{ table }}', $tableName, $this->dropTableStub);
+        $lines = [];
+        foreach ($this->collapseTimestamps($parsedTable->columns) as $col) {
+            $lines[] = '            '.$this->parsedColumnToBlueprint($col).';';
+        }
+        foreach ($parsedTable->uniqueConstraints as $cols) {
+            $lines[] = "            \$table->unique(['".(implode("', '", $cols))."']);";
+        }
+        foreach ($parsedTable->indexConstraints as $cols) {
+            $lines[] = "            \$table->index(['".(implode("', '", $cols))."']);";
+        }
+
+        return str_replace(
+            ['{{ table }}', '{{ recreate_body }}'],
+            [$tableName, implode("\n", $lines)],
+            $this->dropTableStub,
+        );
     }
 
     /** @param ParsedColumn[] $cols */
     private function renderDropColumns(string $tableName, array $cols): string
     {
-        $lines = [];
+        $dropLines = [];
         $fkCols = array_filter($cols, static fn (ParsedColumn $c): bool => isset($c->modifiers['references']));
         if ($fkCols !== []) {
             $fkNames = implode(', ', array_map(static fn (ParsedColumn $c): string => "'{$c->name}'", $fkCols));
-            $lines[] = "            \$table->dropForeign([{$fkNames}]);";
+            $dropLines[] = "            \$table->dropForeign([{$fkNames}]);";
         }
         $names = implode(', ', array_map(static fn (ParsedColumn $c): string => "'{$c->name}'", $cols));
-        $lines[] = "            \$table->dropColumn([{$names}]);";
+        $dropLines[] = "            \$table->dropColumn([{$names}]);";
+
+        $addLines = [];
+        foreach ($cols as $col) {
+            $addLines[] = '            '.$this->parsedColumnToBlueprint($col).';';
+        }
 
         return str_replace(
-            ['{{ table }}', '{{ drop_lines }}'],
-            [$tableName, implode("\n", $lines)],
+            ['{{ table }}', '{{ drop_lines }}', '{{ add_lines }}'],
+            [$tableName, implode("\n", $dropLines), implode("\n", $addLines)],
             $this->dropColumnsStub,
         );
     }
 
-    /** @param ColumnDef[] $columns */
-    private function renderModifyColumns(string $tableName, array $columns): string
+    /** @param ColumnDef[] $columns @param ParsedColumn[] $originalColumns */
+    private function renderModifyColumns(string $tableName, array $columns, array $originalColumns = []): string
     {
         $lines = [];
         foreach ($columns as $col) {
             $lines[] = '            '.$this->columnToBlueprint($col).'->change();';
         }
 
+        $reverseLines = [];
+        foreach ($originalColumns as $col) {
+            $reverseLines[] = '            '.$this->parsedColumnToBlueprint($col).'->change();';
+        }
+
         return str_replace(
-            ['{{ table }}', '{{ columns }}'],
-            [$tableName, implode("\n", $lines)],
+            ['{{ table }}', '{{ columns }}', '{{ reverse_columns }}'],
+            [$tableName, implode("\n", $lines), implode("\n", $reverseLines)],
             $this->modifyColumnsStub,
         );
     }
@@ -272,6 +298,125 @@ class MigrationGenerator
         }
 
         return (string) $value;
+    }
+
+    private function parsedColumnToBlueprint(ParsedColumn $col): string
+    {
+        $m = $col->modifiers;
+        $type = $col->type;
+
+        // Handle shortcut types
+        if ($type === 'timestamps') {
+            return '$table->timestamps()';
+        }
+        if ($type === 'softDeletes') {
+            return '$table->softDeletes()';
+        }
+        if ($type === 'rememberToken') {
+            return '$table->rememberToken()';
+        }
+
+        // Handle id/bigIncrements
+        if ($type === 'id' || $type === 'bigIncrements') {
+            return $col->name === 'id' ? '$table->id()' : sprintf('$table->id(\'%s\')', $col->name);
+        }
+
+        // Handle morphs types
+        if (in_array($type, ['morphs', 'nullableMorphs', 'uuidMorphs', 'nullableUuidMorphs', 'ulidMorphs', 'nullableUlidMorphs'], true)) {
+            $chain = match ($type) {
+                'morphs' => sprintf('$table->morphs(\'%s\')', $col->name),
+                'nullableMorphs' => sprintf('$table->nullableMorphs(\'%s\')', $col->name),
+                'uuidMorphs' => sprintf('$table->uuidMorphs(\'%s\')', $col->name),
+                'nullableUuidMorphs' => sprintf('$table->nullableUuidMorphs(\'%s\')', $col->name),
+                'ulidMorphs' => sprintf('$table->ulidMorphs(\'%s\')', $col->name),
+                'nullableUlidMorphs' => sprintf('$table->nullableUlidMorphs(\'%s\')', $col->name),
+            };
+            return $chain;
+        }
+
+        // Handle string/char with length
+        if (in_array($type, ['string', 'char'], true) && isset($m['length'])) {
+            $chain = sprintf('$table->%s(\'%s\', %d)', $type, $col->name, $m['length']);
+        } else {
+            $chain = sprintf('$table->%s(\'%s\')', $type, $col->name);
+        }
+
+        // Apply modifiers
+        if (!empty($m['primary'])) {
+            $chain .= '->primary()';
+        }
+        if (!empty($m['nullable'])) {
+            $chain .= '->nullable()';
+        }
+        if (!empty($m['unique'])) {
+            $chain .= '->unique()';
+        }
+        if (!empty($m['unsigned'])) {
+            $chain .= '->unsigned()';
+        }
+        if (!empty($m['index'])) {
+            $chain .= '->index()';
+        }
+        if (!empty($m['useCurrent'])) {
+            $chain .= '->useCurrent()';
+        }
+        if (isset($m['default']) && is_scalar($m['default'])) {
+            $chain .= '->default('.$this->renderDefault((string) $m['default']).')';
+        }
+        if (isset($m['references']) && is_string($m['references'])) {
+            $autoTable = str_ends_with($col->name, '_id')
+                ? Str::plural(substr($col->name, 0, -3))
+                : null;
+            $chain .= $m['references'] === $autoTable
+                ? '->constrained()'
+                : sprintf('->constrained(\'%s\')', $m['references']);
+        }
+        if (isset($m['onDelete'])) {
+            $chain .= match ($m['onDelete']) {
+                'cascade' => '->cascadeOnDelete()',
+                'null' => '->nullOnDelete()',
+                'restrict' => '->restrictOnDelete()',
+                default => '',
+            };
+        }
+
+        return $chain;
+    }
+
+    /**
+     * @param array<string, ParsedColumn> $columns
+     * @return ParsedColumn[]
+     */
+    private function collapseTimestamps(array $columns): array
+    {
+        $result = [];
+        $cols = array_values($columns);
+        $i = 0;
+
+        while ($i < count($cols)) {
+            $cur = $cols[$i];
+            $next = $cols[$i + 1] ?? null;
+
+            if (
+                $cur->name === 'created_at'
+                && $cur->type === 'timestamp'
+                && $cur->modifiers === []
+                && $next !== null
+                && $next->name === 'updated_at'
+                && $next->type === 'timestamp'
+                && $next->modifiers === []
+            ) {
+                $result[] = new ParsedColumn('timestamps', 'timestamps');
+                $i += 2;
+
+                continue;
+            }
+
+            $result[] = $cur;
+            $i++;
+        }
+
+        return $result;
     }
 
     /** @throws MigrationAlreadyExistsException */
