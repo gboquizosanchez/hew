@@ -127,6 +127,51 @@ class MigrationParser
             }
         }
 
+        // 5. Fallback: try to resolve remaining $variable in Schema calls via ternary default or filename
+        $content = $this->resolveUnresolvedSchemaVars($content, $filename);
+
+        return $content;
+    }
+
+    private function resolveUnresolvedSchemaVars(string $content, string $filename): string
+    {
+        // Check if any Schema::create/table still has an unresolved variable
+        $pattern = '/Schema\s*::\s*(?:connection\s*\([^)]*\)\s*->\s*)?(create|table)\s*\(\s*(\$[a-zA-Z_][a-zA-Z0-9_]*)/';
+        if (! preg_match_all($pattern, $content, $matches, PREG_SET_ORDER)) {
+            return $content;
+        }
+
+        $unresolved = [];
+        foreach ($matches as $m) {
+            $varName = $m[2];
+            if (! in_array($varName, $unresolved, true)) {
+                $unresolved[] = $varName;
+            }
+        }
+
+        foreach ($unresolved as $varName) {
+            // Try to find $var = ... ? ... : 'default' ternary with string fallback
+            $escaped = preg_quote($varName, '/');
+            if (preg_match('/'.$escaped.'\s*=\s*[^;]*\?\s*[^:]*:\s*[\'"]([^\'"]+)[\'"]/', $content, $tm)) {
+                $content = preg_replace(
+                    '/(Schema\s*::\s*(?:connection\s*\([^)]*\)\s*->\s*)?(?:create|table)\s*\(\s*)'.preg_quote($varName, '/').'/',
+                    "$1'{$tm[1]}'",
+                    $content,
+                ) ?? $content;
+                continue;
+            }
+
+            // Last resort: infer from filename
+            $tableName = $this->tableNameFromFilename($filename);
+            if ($tableName !== null) {
+                $content = preg_replace(
+                    '/(Schema\s*::\s*(?:connection\s*\([^)]*\)\s*->\s*)?(?:create|table)\s*\(\s*)'.preg_quote($varName, '/').'/',
+                    "$1'{$tableName}'",
+                    $content,
+                ) ?? $content;
+            }
+        }
+
         return $content;
     }
 
