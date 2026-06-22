@@ -99,6 +99,7 @@ class MigrationParser
 
     private function resolveClassConstants(string $content, string $filename): string
     {
+        // 1. self::CONSTANT resolution
         if (preg_match_all('/const\s+([A-Z_]+)\s*=\s*[\'"]([^\'"]+)[\'"]\s*;/', $content, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $m) {
                 $content = preg_replace(
@@ -109,6 +110,13 @@ class MigrationParser
             }
         }
 
+        // 2. External class constants (e.g., Login::TYPE_LOGIN)
+        $content = $this->resolveExternalClassConstants($content);
+
+        // 3. Config::string('key') and config('key') calls
+        $content = $this->resolveConfigCalls($content);
+
+        // 4. $variable = 'string' → Schema replacement (after Config so $table = 'activity_log' works)
         if (preg_match_all('/(\$[a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*[\'"]([^\'"]+)[\'"]\s*;/', $content, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $m) {
                 $content = preg_replace(
@@ -118,12 +126,6 @@ class MigrationParser
                 ) ?? $content;
             }
         }
-
-        // Resolve external class constants (e.g., Login::TYPE_LOGIN)
-        $content = $this->resolveExternalClassConstants($content);
-
-        // Resolve Config::string('key') and config('key') calls
-        $content = $this->resolveConfigCalls($content);
 
         return $content;
     }
@@ -458,6 +460,17 @@ class MigrationParser
                 $modifiers['length'] = (int) $lenMatch[1];
             }
 
+            if ($type === 'decimal' && preg_match_all('/\d+/', $args, $numMatches)) {
+                // decimal('col', precision, scale) — skip first match (column name digits unlikely)
+                $nums = array_values(array_filter(array_map('intval', $numMatches[0])));
+                if (count($nums) >= 2) {
+                    $modifiers['precision'] = $nums[0];
+                    $modifiers['scale'] = $nums[1];
+                } elseif (count($nums) === 1) {
+                    $modifiers['precision'] = $nums[0];
+                }
+            }
+
             if (($modifiers['references'] ?? null) === '__infer__') {
                 $modifiers['references'] = $this->inferTableFromColumn($colName);
             }
@@ -628,6 +641,13 @@ class MigrationParser
             $modifiers['onDelete'] = 'null';
         } elseif (preg_match('/->restrictOnDelete\(\)/', $tail)) {
             $modifiers['onDelete'] = 'restrict';
+        }
+        if (preg_match('/->cascadeOnUpdate\(\)/', $tail)) {
+            $modifiers['onUpdate'] = 'cascade';
+        } elseif (preg_match('/->nullOnUpdate\(\)/', $tail)) {
+            $modifiers['onUpdate'] = 'null';
+        } elseif (preg_match('/->restrictOnUpdate\(\)/', $tail)) {
+            $modifiers['onUpdate'] = 'restrict';
         }
 
         // ->default(value) — handles one level of nested parens

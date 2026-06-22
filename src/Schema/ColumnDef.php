@@ -41,6 +41,8 @@ class ColumnDef
 
     public ?string $onDelete = null;
 
+    public ?string $onUpdate = null;
+
     /** @var ColumnDef[] */
     private array $children = [];
 
@@ -200,6 +202,27 @@ class ColumnDef
     public function restrictOnDelete(): self
     {
         $this->onDelete = 'restrict';
+
+        return $this;
+    }
+
+    public function cascadeOnUpdate(): self
+    {
+        $this->onUpdate = 'cascade';
+
+        return $this;
+    }
+
+    public function nullOnUpdate(): self
+    {
+        $this->onUpdate = 'null';
+
+        return $this;
+    }
+
+    public function restrictOnUpdate(): self
+    {
+        $this->onUpdate = 'restrict';
 
         return $this;
     }

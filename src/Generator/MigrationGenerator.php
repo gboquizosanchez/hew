@@ -255,6 +255,14 @@ class MigrationGenerator
                     default => '',
                 };
             }
+            if ($col->onUpdate !== null) {
+                $chain .= match ($col->onUpdate) {
+                    'cascade' => '->cascadeOnUpdate()',
+                    'null' => '->nullOnUpdate()',
+                    'restrict' => '->restrictOnUpdate()',
+                    default => '',
+                };
+            }
         }
 
         if ($col->hasDefault) {
@@ -376,6 +384,14 @@ class MigrationGenerator
                 'cascade' => '->cascadeOnDelete()',
                 'null' => '->nullOnDelete()',
                 'restrict' => '->restrictOnDelete()',
+                default => '',
+            };
+        }
+        if (isset($m['onUpdate'])) {
+            $chain .= match ($m['onUpdate']) {
+                'cascade' => '->cascadeOnUpdate()',
+                'null' => '->nullOnUpdate()',
+                'restrict' => '->restrictOnUpdate()',
                 default => '',
             };
         }

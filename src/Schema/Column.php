@@ -36,7 +36,7 @@ class Column
         return $col;
     }
 
-    public static function decimal(string $name, int $precision, int $scale): ColumnDef
+    public static function decimal(string $name, int $precision = 8, int $scale = 2): ColumnDef
     {
         return new ColumnDef($name, 'decimal', [$precision, $scale]);
     }

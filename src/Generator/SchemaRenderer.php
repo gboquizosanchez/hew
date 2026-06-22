@@ -118,12 +118,9 @@ class SchemaRenderer
             'bigIncrements' => $col->name === 'id' ? 'Column::id()' : "Column::id('{$col->name}')",
             'bigInteger' => "Column::integer('{$col->name}')->big()",
             'unsignedBigInteger' => "Column::integer('{$col->name}')->big()->unsigned()",
-            'decimal' => sprintf(
-                "Column::decimal('%s', %d, %d)",
-                $col->name,
-                is_numeric($col->modifiers['precision'] ?? null) ? (int) $col->modifiers['precision'] : 10,
-                is_numeric($col->modifiers['scale'] ?? null) ? (int) $col->modifiers['scale'] : 2,
-            ),
+            'decimal' => isset($col->modifiers['precision'])
+                ? sprintf("Column::decimal('%s', %d, %d)", $col->name, (int) $col->modifiers['precision'], (int) ($col->modifiers['scale'] ?? 2))
+                : "Column::decimal('{$col->name}')",
             'float', 'double' => "Column::float('{$col->name}')",
             'boolean' => "Column::boolean('{$col->name}')",
             'json', 'jsonb' => "Column::json('{$col->name}')",
@@ -172,6 +169,14 @@ class SchemaRenderer
                 'cascade' => '->cascadeOnDelete()',
                 'null' => '->nullOnDelete()',
                 'restrict' => '->restrictOnDelete()',
+                default => '',
+            };
+        }
+        if (isset($m['onUpdate']) && is_string($m['onUpdate'])) {
+            $chain .= match ($m['onUpdate']) {
+                'cascade' => '->cascadeOnUpdate()',
+                'null' => '->nullOnUpdate()',
+                'restrict' => '->restrictOnUpdate()',
                 default => '',
             };
         }
