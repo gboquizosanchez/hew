@@ -125,9 +125,15 @@ class SchemaRenderer
             'boolean' => "Column::boolean('{$col->name}')",
             'json', 'jsonb' => "Column::json('{$col->name}')",
             'timestamp', 'dateTime', 'datetime', 'dateTimeTz', 'timestampTz' => "Column::timestamp('{$col->name}')",
-            'foreignId' => "Column::id('{$col->name}')->foreign()",
-            'foreignUuid' => "Column::uuid('{$col->name}')->foreign()",
-            'foreignUlid' => "Column::ulid('{$col->name}')->foreign()",
+            'foreignId' => isset($col->modifiers['references'])
+                ? "Column::id('{$col->name}')->foreign()"
+                : "Column::id('{$col->name}')",
+            'foreignUuid' => isset($col->modifiers['references'])
+                ? "Column::uuid('{$col->name}')->foreign()"
+                : "Column::uuid('{$col->name}')",
+            'foreignUlid' => isset($col->modifiers['references'])
+                ? "Column::ulid('{$col->name}')->foreign()"
+                : "Column::ulid('{$col->name}')",
             'rememberToken' => 'Column::rememberToken()',
             'morphs' => "Column::morphs('{$col->name}')",
             'nullableMorphs' => "Column::morphs('{$col->name}')->nullable()",
