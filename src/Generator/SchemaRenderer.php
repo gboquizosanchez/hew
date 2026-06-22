@@ -12,8 +12,9 @@ class SchemaRenderer
 {
     /**
      * @param  array<string, ParsedTable>  $tables
+     * @param  string[]  $extraUseStatements  Additional use statements (e.g. from external class constants)
      */
-    public function render(array $tables): string
+    public function render(array $tables, array $extraUseStatements = []): string
     {
         $hasManyIndex = $this->buildHasManyIndex($tables);
 
@@ -22,7 +23,12 @@ class SchemaRenderer
             $blocks[] = $this->renderTable($table, $hasManyIndex[$table->name] ?? []);
         }
 
-        return "<?php\n\ndeclare(strict_types=1);\n\nuse Boquizo\\Hew\\Schema\\Column;\nuse Boquizo\\Hew\\Schema\\Schema;\nuse Boquizo\\Hew\\Schema\\Table;\n\nreturn Schema::define([\n\n"
+        $useBlock = "use Boquizo\\Hew\\Schema\\Column;\nuse Boquizo\\Hew\\Schema\\Schema;\nuse Boquizo\\Hew\\Schema\\Table;";
+        foreach ($extraUseStatements as $fqcn) {
+            $useBlock .= "\nuse {$fqcn};";
+        }
+
+        return "<?php\n\ndeclare(strict_types=1);\n\n{$useBlock}\n\nreturn Schema::define([\n\n"
             .implode("\n\n", $blocks)
             ."\n\n]);\n";
     }

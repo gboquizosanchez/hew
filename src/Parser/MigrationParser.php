@@ -99,8 +99,8 @@ class MigrationParser
 
     private function resolveClassConstants(string $content, string $filename): string
     {
-        // 1. self::CONSTANT resolution
-        if (preg_match_all('/const\s+([A-Z_]+)\s*=\s*[\'"]([^\'"]+)[\'"]\s*;/', $content, $matches, PREG_SET_ORDER)) {
+        // 1. self::CONSTANT resolution (handles typed constants like const string FOO = 'bar')
+        if (preg_match_all('/const\s+(?:\w+\s+)?([A-Z_]+)\s*=\s*[\'"]([^\'"]+)[\'"]\s*;/', $content, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $m) {
                 $content = preg_replace(
                     '/(?:self|static)::'.preg_quote($m[1], '/').'/',
@@ -216,6 +216,9 @@ class MigrationParser
         return $default;
     }
 
+    /** @var string[] FQCNs discovered from migration use statements (e.g. 'Lab404\AuthChecker\Models\Login') */
+    private array $externalUseStatements = [];
+
     private function resolveExternalClassConstants(string $content): string
     {
         // Find use statements: use Foo\Bar\ClassName;
@@ -237,20 +240,27 @@ class MigrationParser
 
         foreach ($constMatches as $cm) {
             $className = $cm[1];
-            $constantName = $cm[2];
 
             if (! isset($uses[$className])) {
                 continue;
             }
 
+            // Verify the class+constant exists in vendor, then collect the use statement
             $fqcn = $uses[$className];
-            $value = $this->resolveConstantFromVendor($fqcn, $constantName);
-            if ($value !== null) {
-                $content = str_replace($cm[0], "'{$value}'", $content);
+            if ($this->resolveConstantFromVendor($fqcn, $cm[2]) !== null) {
+                if (! in_array($fqcn, $this->externalUseStatements, true)) {
+                    $this->externalUseStatements[] = $fqcn;
+                }
             }
         }
 
         return $content;
+    }
+
+    /** @return string[] */
+    public function getExternalUseStatements(): array
+    {
+        return $this->externalUseStatements;
     }
 
     private function resolveConstantFromVendor(string $fqcn, string $constantName): ?string

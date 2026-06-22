@@ -50,7 +50,7 @@ class ImportCommand extends Command
         $parser = new MigrationParser($seed, base_path());
         $tables = $parser->parse($migrationsPath);
 
-        $content = (new SchemaRenderer)->render($tables);
+        $content = (new SchemaRenderer)->render($tables, $parser->getExternalUseStatements());
 
         file_put_contents($outputPath, $content);
 
