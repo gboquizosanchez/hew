@@ -236,12 +236,12 @@ it('normalises jsonb to json', function (): void {
     expect($output)->toContain("Column::json('meta')");
 });
 
-it('normalises dateTime to timestamp', function (): void {
+it('renders dateTime as Column::dateTime', function (): void {
     $output = (new SchemaRenderer)->render([
         table('t', [col('sent_at', 'dateTime')]),
     ]);
 
-    expect($output)->toContain("Column::timestamp('sent_at')");
+    expect($output)->toContain("Column::dateTime('sent_at')");
 });
 
 it('emits uuid column', function (): void {

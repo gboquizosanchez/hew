@@ -61,6 +61,21 @@ class Column
         return new ColumnDef($name, 'timestamp');
     }
 
+    public static function timestampTz(string $name): ColumnDef
+    {
+        return new ColumnDef($name, 'timestampTz');
+    }
+
+    public static function dateTime(string $name): ColumnDef
+    {
+        return new ColumnDef($name, 'dateTime');
+    }
+
+    public static function dateTimeTz(string $name): ColumnDef
+    {
+        return new ColumnDef($name, 'dateTimeTz');
+    }
+
     public static function timestamps(): ColumnDef
     {
         return ColumnDef::makeShortcut('timestamps', 'timestamps', [

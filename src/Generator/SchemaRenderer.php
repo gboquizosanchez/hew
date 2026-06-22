@@ -124,7 +124,9 @@ class SchemaRenderer
             'float', 'double' => "Column::float('{$col->name}')",
             'boolean' => "Column::boolean('{$col->name}')",
             'json', 'jsonb' => "Column::json('{$col->name}')",
-            'timestamp', 'dateTime', 'datetime', 'dateTimeTz', 'timestampTz' => "Column::timestamp('{$col->name}')",
+            'timestamp', 'timestampTz' => "Column::timestamp('{$col->name}')",
+            'dateTime' => "Column::dateTime('{$col->name}')",
+            'dateTimeTz' => "Column::dateTimeTz('{$col->name}')",
             'foreignId' => isset($col->modifiers['references'])
                 ? "Column::id('{$col->name}')->foreign()"
                 : "Column::id('{$col->name}')",

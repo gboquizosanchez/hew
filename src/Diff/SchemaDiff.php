@@ -161,7 +161,7 @@ class SchemaDiff
             'foreignId' => ['foreignId', 'unsignedBigInteger'],
             'text' => ['text', 'longText', 'mediumText', 'tinyText'],
             'integer' => ['integer', 'bigInteger', 'smallInteger', 'tinyInteger', 'mediumInteger', 'unsignedInteger', 'unsignedTinyInteger', 'unsignedSmallInteger', 'unsignedMediumInteger', 'unsignedBigInteger'],
-            'timestamp' => ['timestamp', 'dateTime', 'dateTimeTz'],
+            'timestamp' => ['timestamp', 'timestampTz'],
             'morphs' => ['morphs', 'nullableMorphs'],
             'uuidMorphs' => ['uuidMorphs', 'nullableUuidMorphs'],
             'ulidMorphs' => ['ulidMorphs', 'nullableUlidMorphs'],

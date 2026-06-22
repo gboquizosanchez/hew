@@ -467,9 +467,6 @@ class MigrationParser
             if ($type === 'softDeletesTz') {
                 $type = 'softDeletes';
             }
-            if ($type === 'timestampTz') {
-                $type = 'timestamp';
-            }
             if (in_array($type, ['increments', 'tinyIncrements', 'smallIncrements', 'mediumIncrements', 'integerIncrements'], true)) {
                 $type = 'bigIncrements';
             }
