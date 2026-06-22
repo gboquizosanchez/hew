@@ -122,7 +122,51 @@ class MigrationParser
         // Resolve external class constants (e.g., Login::TYPE_LOGIN)
         $content = $this->resolveExternalClassConstants($content);
 
+        // Resolve Config::string('key') and config('key') calls
+        $content = $this->resolveConfigCalls($content);
+
         return $content;
+    }
+
+    private function resolveConfigCalls(string $content): string
+    {
+        // Config::string('key') or Config::get('key', 'default')
+        $pattern = '/Config\s*::\s*(?:string|get|get)\s*\(\s*[\'"]([\w.]+)[\'"](?:\s*,\s*[\'"]([^\'"]*)[\'"])?\s*\)/';
+        if (preg_match_all($pattern, $content, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $m) {
+                $key = $m[1];
+                $default = $m[2] ?? null;
+                $value = $this->resolveConfigValue($key, $default);
+                if ($value !== null) {
+                    $content = str_replace($m[0], "'{$value}'", $content);
+                }
+            }
+        }
+
+        // config('key') or config('key', 'default')
+        $pattern2 = '/config\s*\(\s*[\'"]([\w.]+)[\'"](?:\s*,\s*[\'"]([^\'"]*)[\'"])?\s*\)/';
+        if (preg_match_all($pattern2, $content, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $m) {
+                $key = $m[1];
+                $default = $m[2] ?? null;
+                $value = $this->resolveConfigValue($key, $default);
+                if ($value !== null) {
+                    $content = str_replace($m[0], "'{$value}'", $content);
+                }
+            }
+        }
+
+        return $content;
+    }
+
+    private function resolveConfigValue(string $key, ?string $default = null): ?string
+    {
+        if (function_exists('config')) {
+            $value = config($key, $default);
+            return is_string($value) ? $value : null;
+        }
+
+        return $default;
     }
 
     private function resolveExternalClassConstants(string $content): string
