@@ -213,12 +213,6 @@ class MigrationParser
             $content = (string) file_get_contents($file);
             $content = $this->resolveClassConstants($content, basename($file));
 
-            if (preg_match('/(?:DB|Schema)\s*::\s*statement\s*\(/', $content)) {
-                $this->unparseable[] = basename($file).' (contains DB/Schema::statement — manual review needed)';
-
-                return;
-            }
-
             $upBody = $this->extractUpBody($content);
             if ($upBody === null) {
                 $this->unparseable[] = basename($file);
@@ -226,6 +220,9 @@ class MigrationParser
                 return;
             }
             $this->processUpBody($upBody, basename($file));
+
+            // Parse ALTER TABLE ... MODIFY from DB::statement calls
+            $this->parseDbStatements($upBody, basename($file));
         } catch (\Throwable) {
             $this->unparseable[] = basename($file);
         }
@@ -493,6 +490,68 @@ class MigrationParser
 
         // New columns and ->change() redefinitions (addColumn overwrites by name)
         $this->parseClosureBody($body, $tableName, $filename);
+    }
+
+    private function parseDbStatements(string $upBody, string $filename): void
+    {
+        // ALTER TABLE `table` MODIFY `column` TYPE NULL/NOT NULL
+        $pattern = "/DB::statement\(\s*[\"'].*ALTER\s+TABLE\s+[\"'`]?(\w+)[\"'`]?\s+MODIFY\s+[\"'`]?(\w+)[\"'`]?\s+(\w+(?:\([^)]*\))?)\s+(NULL|NOT NULL)/i";
+        if (! preg_match_all($pattern, $upBody, $matches, PREG_SET_ORDER)) {
+            return;
+        }
+
+        foreach ($matches as $m) {
+            $tableName = $m[1];
+            $colName = $m[2];
+            $sqlType = strtoupper($m[3]);
+            $nullable = strtoupper($m[4]) === 'NULL';
+
+            if (! isset($this->tables[$tableName])) {
+                $this->tables[$tableName] = new ParsedTable($tableName);
+            }
+
+            $type = $this->sqlTypeToBlueprintType($sqlType);
+            $modifiers = [];
+            if ($nullable) {
+                $modifiers['nullable'] = true;
+            }
+
+            $this->tables[$tableName]->addColumn(new ParsedColumn($colName, $type, $modifiers));
+        }
+    }
+
+    private function sqlTypeToBlueprintType(string $sqlType): string
+    {
+        // Strip size parameters for comparison
+        $base = preg_replace('/\s*\([^)]*\)/', '', $sqlType) ?? $sqlType;
+
+        return match ($base) {
+            'TINYINT' => 'tinyInteger',
+            'SMALLINT' => 'smallInteger',
+            'MEDIUMINT' => 'mediumInteger',
+            'BIGINT' => 'bigInteger',
+            'INT', 'INTEGER' => 'integer',
+            'TINYTEXT' => 'tinyText',
+            'TEXT' => 'text',
+            'MEDIUMTEXT' => 'mediumText',
+            'LONGTEXT' => 'longText',
+            'TINYBLOB' => 'binary',
+            'BLOB', 'MEDIUMBLOB', 'LONGBLOB' => 'binary',
+            'VARCHAR' => 'string',
+            'CHAR' => 'char',
+            'BOOLEAN', 'BOOL', 'TINYINT(1)' => 'boolean',
+            'DATE' => 'date',
+            'DATETIME' => 'dateTime',
+            'TIMESTAMP' => 'timestamp',
+            'TIME' => 'time',
+            'DECIMAL', 'NUMERIC' => 'decimal',
+            'FLOAT' => 'float',
+            'DOUBLE' => 'float',
+            'JSON', 'JSONB' => 'json',
+            'UUID' => 'uuid',
+            'BINARY', 'VARBINARY' => 'binary',
+            default => strtolower($base),
+        };
     }
 
     /** @param array<string, mixed> $modifiers */

@@ -257,19 +257,20 @@ return new class extends Migration {
     cleanDir($dir);
 });
 
-it('marks files with DB::statement as unparseable', function (): void {
+it('parses ALTER TABLE MODIFY from DB::statement', function (): void {
     $dir = tmpMigrationDir();
     file_put_contents($dir.'/2024_01_01_000001_raw.php', '<?php
 use Illuminate\Database\Migrations\Migration;
 return new class extends Migration {
-    public function up(): void { DB::statement("ALTER TABLE users ADD COLUMN foo INT"); }
+    public function up(): void { DB::statement("ALTER TABLE users MODIFY name MEDIUMTEXT NOT NULL"); }
     public function down(): void {}
 };');
 
     $parser = new MigrationParser;
-    $parser->parse($dir);
+    $tables = $parser->parse($dir);
 
-    expect($parser->getUnparseable())->toContain('2024_01_01_000001_raw.php (contains DB/Schema::statement — manual review needed)');
+    expect($tables['users']->columns['name']->type)->toBe('mediumText');
+    expect(array_key_exists('nullable', $tables['users']->columns['name']->modifiers))->toBeFalse();
     cleanDir($dir);
 });
 
