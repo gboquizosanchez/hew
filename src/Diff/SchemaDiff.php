@@ -156,7 +156,7 @@ class SchemaDiff
 
         // Known aliases
         $aliases = [
-            'id' => ['id', 'bigIncrements', 'unsignedBigInteger'],
+            'id' => ['id', 'bigIncrements', 'unsignedBigInteger', 'foreignId'],
             'bigInteger' => ['bigInteger', 'bigIncrements'],
             'foreignId' => ['foreignId', 'unsignedBigInteger'],
             'text' => ['text', 'longText', 'mediumText', 'tinyText'],

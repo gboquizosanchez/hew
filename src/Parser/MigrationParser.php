@@ -120,7 +120,7 @@ class MigrationParser
         if (preg_match_all('/(\$[a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*[\'"]([^\'"]+)[\'"]\s*;/', $content, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $m) {
                 $content = preg_replace(
-                    '/Schema\s*::\s*(create|table)\s*\(\s*'.preg_quote($m[1], '/').'/',
+                    '/Schema\s*::\s*(?:connection\s*\([^)]*\)\s*->\s*)?(create|table)\s*\(\s*'.preg_quote($m[1], '/').'/',
                     "Schema::$1('{$m[2]}'",
                     $content,
                 ) ?? $content;
@@ -304,7 +304,7 @@ class MigrationParser
     {
         // Schema::drop / Schema::dropIfExists in up() → remove from accumulated state
         if (preg_match_all(
-            '/Schema\s*::\s*drop(?:IfExists)?\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)/',
+            '/Schema\s*::\s*(?:connection\s*\([^)]*\)\s*->\s*)?drop(?:IfExists)?\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)/',
             $upBody,
             $dropMatches,
             PREG_SET_ORDER,
@@ -316,8 +316,8 @@ class MigrationParser
             }
         }
 
-        // Find Schema::create and Schema::table calls
-        $pattern = '/Schema\s*::\s*(create|table)\s*\(\s*[\'"]([^\'"]+)[\'"]/';
+        // Find Schema::create and Schema::table calls (including Schema::connection()->create/table)
+        $pattern = '/Schema\s*::\s*(?:connection\s*\([^)]*\)\s*->\s*)?(create|table)\s*\(\s*[\'"]([^\'"]+)[\'"]/';
         if (! preg_match_all($pattern, $upBody, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) {
             return;
         }
