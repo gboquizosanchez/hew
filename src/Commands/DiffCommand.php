@@ -32,7 +32,7 @@ class DiffCommand extends Command
 
         /** @var Schema $schema */
         $schema = require $schemaPath;
-        $parser = new MigrationParser;
+        $parser = new MigrationParser([], base_path());
         $current = $parser->parse(database_path('migrations'));
 
         $diff = new SchemaDiff($schema, $current);

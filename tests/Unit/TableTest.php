@@ -31,24 +31,9 @@ it('hasOne is metadata and returns self', function (): void {
     expect(Table::make('users')->hasOne('profile')->name)->toBe('users');
 });
 
-it('warns via E_USER_WARNING when belongsTo foreign key is missing', function (): void {
-    $warned = false;
-    set_error_handler(static function (int $errno, string $errstr) use (&$warned): bool {
-        if ($errno === E_USER_WARNING && str_contains($errstr, 'company_id')) {
-            $warned = true;
-        }
-
-        return true;
-    });
-    Table::make('users')->columns([Column::id()])->belongsTo('companies');
-    restore_error_handler();
-
-    expect($warned)->toBeTrue();
-});
-
-it('does not warn when belongsTo foreign key is present', function (): void {
+it('belongsTo is metadata and returns self', function (): void {
     $table = Table::make('users')
-        ->columns([Column::id(), Column::id('company_id')])
+        ->columns([Column::id()])
         ->belongsTo('companies');
 
     expect($table->name)->toBe('users');

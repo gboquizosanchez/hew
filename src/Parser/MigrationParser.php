@@ -9,10 +9,13 @@ class MigrationParser
     /** @var array<string, ParsedTable> */
     private array $tables;
 
+    private string $projectRoot;
+
     /** @param array<string, ParsedTable> $seed Initial table state (e.g. from a schema dump) */
-    public function __construct(array $seed = [])
+    public function __construct(array $seed = [], ?string $projectRoot = null)
     {
         $this->tables = $seed;
+        $this->projectRoot = $projectRoot ?? dirname(__DIR__, 2);
     }
 
     /** @var string[] */
@@ -116,6 +119,9 @@ class MigrationParser
             }
         }
 
+        // Resolve external class constants (e.g., Login::TYPE_LOGIN)
+        $content = $this->resolveExternalClassConstants($content);
+
         // Fallback: infer table name from filename for any still-unresolved Schema calls
         $tableName = $this->tableNameFromFilename($filename);
         if ($tableName !== null) {
@@ -127,6 +133,68 @@ class MigrationParser
         }
 
         return $content;
+    }
+
+    private function resolveExternalClassConstants(string $content): string
+    {
+        // Find use statements: use Foo\Bar\ClassName;
+        if (! preg_match_all('/use\s+([\w\\\\]+)\s*;/', $content, $useMatches, PREG_SET_ORDER)) {
+            return $content;
+        }
+
+        $uses = [];
+        foreach ($useMatches as $um) {
+            $parts = explode('\\', $um[1]);
+            $shortName = end($parts);
+            $uses[$shortName] = $um[1];
+        }
+
+        // Find ClassName::CONSTANT patterns
+        if (! preg_match_all('/([A-Z][A-Za-z0-9_]*)::([A-Z_]+)/', $content, $constMatches, PREG_SET_ORDER)) {
+            return $content;
+        }
+
+        foreach ($constMatches as $cm) {
+            $className = $cm[1];
+            $constantName = $cm[2];
+
+            if (! isset($uses[$className])) {
+                continue;
+            }
+
+            $fqcn = $uses[$className];
+            $value = $this->resolveConstantFromVendor($fqcn, $constantName);
+            if ($value !== null) {
+                $content = str_replace($cm[0], "'{$value}'", $content);
+            }
+        }
+
+        return $content;
+    }
+
+    private function resolveConstantFromVendor(string $fqcn, string $constantName): ?string
+    {
+        $vendorPath = $this->projectRoot.'/vendor';
+        $path = $vendorPath.'/'.str_replace('\\', '/', $fqcn).'.php';
+
+        if (! file_exists($path)) {
+            // Fallback: use autoloader to find the actual file
+            if (class_exists($fqcn)) {
+                $ref = new \ReflectionClass($fqcn);
+                $path = $ref->getFileName();
+            }
+        }
+
+        if ($path === null || ! file_exists($path)) {
+            return null;
+        }
+
+        $content = file_get_contents($path);
+        if (preg_match('/const\s+'.preg_quote($constantName, '/').'\s*=\s*[\'"]([^\'"]+)[\'"]\s*;/', $content, $m)) {
+            return $m[1];
+        }
+
+        return null;
     }
 
     private function tableNameFromFilename(string $filename): ?string

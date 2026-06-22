@@ -94,21 +94,6 @@ class Table
 
     public function belongsTo(string $related): self
     {
-        $foreignKey = $this->singularize($related).'_id';
-        $hasForeignKey = false;
-        foreach ($this->columns as $col) {
-            if ($col->name === $foreignKey) {
-                $hasForeignKey = true;
-                break;
-            }
-        }
-        if (! $hasForeignKey) {
-            // ponytail: warn to stderr, no logging infra yet
-            trigger_error(
-                "Table '{$this->name}' belongsTo '{$related}' but '{$foreignKey}' column not found.",
-                E_USER_WARNING,
-            );
-        }
         $this->belongsToRelations[] = $related;
 
         return $this;

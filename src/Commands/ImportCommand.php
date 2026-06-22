@@ -47,7 +47,7 @@ class ImportCommand extends Command
             $this->line("  Using schema dump: {$dumpPath} (".count($seed).' tables)');
         }
 
-        $parser = new MigrationParser($seed);
+        $parser = new MigrationParser($seed, base_path());
         $tables = $parser->parse($migrationsPath);
 
         $content = (new SchemaRenderer)->render($tables);

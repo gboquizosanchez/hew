@@ -40,7 +40,7 @@ class SyncCommand extends Command
         $schema = require $schemaPath;
         $migrationsPath = database_path('migrations');
 
-        $parser = new MigrationParser;
+        $parser = new MigrationParser([], base_path());
         $current = $parser->parse($migrationsPath);
         $diff = new SchemaDiff($schema, $current);
 
