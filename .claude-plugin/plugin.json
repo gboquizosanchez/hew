@@ -1,0 +1,9 @@
+{
+    "name": "hew",
+    "version": "0.0.1",
+    "description": "Schema as source of truth for Laravel migrations",
+    "author": {
+        "name": "Germán Boquizo Sánchez",
+        "email": "gboquizo@gestazion.com"
+    }
+}
